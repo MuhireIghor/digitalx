@@ -5,7 +5,7 @@ var app = express();
 var bodyParser = require('body-parser');
 
 var indexname = "world";
-import data from './article.json';
+const data = require('./article.json')
 
 var client = new elasticsearch.Client({
   host: 'localhost:9200',
@@ -39,7 +39,7 @@ var payload ={
         "properties":{
           "title": {
             "type": "string",
-            "analyzer":"indexing_analyzer",
+            "analyzer":"index_analyzer",
             "search_analyzer": "search_analyze"
           },
           "tags": {
