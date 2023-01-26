@@ -73,15 +73,15 @@ var payload = {
             "analyzer": "indexing_analyzer",
             "search_analyzer": "search_analyze"
           },
+          "suggest": {
+            "type": "completion",
+            "analyzer": "simple",
+            "search_analyzer": "simple",
+            "payloads": true
+          }
         }
       }
     },
-    "suggest": {
-      "type": "completion",
-      "analyzer": "simple",
-      "search_analyzer": "simple",
-      "payloads": true
-    }
   }
 
 
