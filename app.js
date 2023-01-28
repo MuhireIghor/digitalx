@@ -1,15 +1,27 @@
 
-var elasticsearch = require('@elastic/elasticsearch');
+var elasticsearch = require('elasticsearch');
 var express = require('express');
+var fs = require("fs");
+
+
 var app = express();
 var bodyParser = require('body-parser');
 
 var indexname = "world";
+const port = process.env.PORT || 8080;
 const data = require('./article.json')
 
 var client = new elasticsearch.Client({
   host: 'localhost:9200',
-  log: 'trace'
+  log: 'trace',
+  auth: {
+    username: 'IGHOR',
+    password: 'IGHOR123'
+  },
+  tls: {
+    ca: fs.readFileSync('./http_ca.crt'),
+    rejectUnauthorized: false
+  }
 });
 var payload = {
   "index": indexname,
@@ -18,94 +30,85 @@ var payload = {
       "analysis": {
         "analyzer": {
           "indexing_analyzer": {
-            "tokenizer": "whitespace",
-            "filter": ["lowercase", "edge_ngram_filter"]
-          },
-          "search_analyze": {
-            "tokenizer": "whitespace",
-            "filter": "lowercase"
+            "tokenizer": "my_tokenizer",
+            "filter": ["lowercase", "ngram_filter"]
           }
         },
+        "search_analyzer": {
+          "tokenizer": "whitespace",
+          "filter": "lowercase"
+        }
+        ,
         "filter": {
-          "edge_ngram_filter": {
-            "type": "edge_ngram",
+          "ngram_filter": {
+            "type": "ngram",
             "min_gram": 1,
             "max_gram": 20
           }
         }
-      }
+      },
+      "tokenizer": {
+        "my_tokenizer": {
+          "type": "whitespace"
+        }
+
+      },
     },
     "mappings": {
-      "world": {
-        "properties": {
-          "title": {
-            "type": "string",
-            "analyzer": "index_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "tags": {
-            "type": "string",
-            "analyzer": "indexing_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "published": {
-            "type": "string",
-            "analyzer": "indexing_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "slug_de": {
-            "type": "string",
-            "analyzer": "indexing_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "slug_en": {
-            "type": "string",
-            "analyzer": "indexing_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "slug_de": {
-            "type": "string",
-            "analyzer": "indexing_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "introtext": {
-            "type": "string",
-            "analyzer": "indexing_analyzer",
-            "search_analyzer": "search_analyze"
-          },
-          "suggest": {
-            "type": "completion",
-            "analyzer": "simple",
-            "search_analyzer": "simple",
-            "payloads": true
-          }
+      "properties": {
+        "title": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyzer"
+        },
+        "tags": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyze"
+        },
+        "published": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyze"
+        },
+        "slug_de": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyze"
+        },
+        "slug_en": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyze"
+        },
+        "introtext": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyze"
+        },
+        "meta_description": {
+          "type": "text",
+          "analyzer": "indexing_analyzer",
+          "search_analyzer": "search_analyze"
+
+        },
+        "suggest": {
+          "type": "completion",
+          "analyzer": "simple",
+          "search_analyzer": "simple",
+          "payloads": false
         }
       }
-    },
-  }
-
-
-
-}
-function getSuggestion(input){
-return client.suggest({
-  index:indexname,
-  type:"document",
-  body:{
-    docsuggest:{
-      title:input,
-      completion:{
-        field:"suggest",
-        fuzzy:true
-      }
     }
-  }
-})
+  },
 }
 
 
 
-app.get("/create", function (request, reponse) {
+
+
+
+app.post("/create", function (request, reponse) {
   client.indices.create(payload, function (error, response) {
     getData();
   });
@@ -114,26 +117,30 @@ app.get("/create", function (request, reponse) {
 
 
 app.get("/search", function (req, resp) {
-  console.log(req.query.search);
   client.search({
     index: indexname,
     body: {
       query: {
-        multi_match: {
-          query: req.query.search,
-          fields: ["title", "tags", "published", "slug_de", "slug_en", "introtext"]
-        }
-      }
-    }
-  }, function (error, response) {
-    resp.json({ result: response });
-  });
-});
-app.get('/suggest/:input',function (req,res,next){
-getSuggestion(req.params.input).then((result)=>{res.json(result)})
-})
+  
+            
+              multi_match: {
+                query: req.query.search,
+                type:"phrase_prefix",
+                fields: ["title", "tags", "published", "slug_de", "slug_en", "introtext", "meta_description"]
+            }}
+            
 
-app.listen("8080");
+        
+      
+    }}, function(error, response) {
+      resp.json({ result: response });
+    });
+});
+
+
+app.listen(port, () => {
+  console.log(`app listening on port ${port}`);
+});
 
 
 
@@ -146,14 +153,13 @@ function getData() {
 
   for (var i = 0; i < data.length; i++) {
     data_array.push(
-      { index: { _index: indexname, _type: 'world', _id: data[i].id } },
-      { title: data[i].title, tags: data[i].tags, published: data[i].published, slug_en: data[i].slug_en, slug_de: data[i].slug_de, introtext: data[i].introtext }
+      { index: { _index: indexname, _id: data[i].id } },
+      { title: data[i].title, tags: data[i].tags, published: data[i].published, slug_en: data[i].slug_en, slug_de: data[i].slug_de, introtext: data[i].introtext, meta_description: data[i].meta_description }
     )
   }
   client.bulk({
     body: data_array
   }, function (error, response) {
-    console.log(error);
-    console.log(response);
+    console.log("this is the response", response);
   });
 };
